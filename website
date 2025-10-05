@@ -1,0 +1,243 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Comfort Forecast</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.app-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.app-header { text-align: center; margin-bottom: 30px; color: white; }
+.app-header h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 10px; text-shadow: 0 2px 5px rgba(0,0,0,0.4); }
+.app-header p { font-size: 1.1rem; opacity: 0.95; font-weight: 400; }
+
+/* Main content layout */
+.main-content { display: grid; grid-template-columns: 350px 1fr; gap: 20px; height: 75vh; }
+
+/* Sidebar */
+.sidebar { 
+    background: rgba(255,255,255,0.95); 
+    border-radius: 20px; 
+    padding: 25px; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25); 
+    display: flex; 
+    flex-direction: column; 
+    gap: 25px; 
+    transition: transform 0.3s ease;
+}
+.sidebar:hover { transform: translateY(-2px); }
+
+.control-panel h3, .results-panel h3 { margin-bottom: 15px; color: #4B4BFF; }
+
+.input-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+.input-group label { margin-bottom: 5px; font-weight: 500; }
+.input-group input { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; transition: border-color 0.3s; }
+.input-group input:focus { border-color: #4B4BFF; outline: none; }
+
+.analyze-btn { 
+    padding: 12px 20px; 
+    border: none; 
+    border-radius: 10px; 
+    background: linear-gradient(135deg, #667eea, #764ba2); 
+    color: white; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.analyze-btn:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2); 
+}
+
+/* Results Panel */
+.results-panel { background: #f9f9f9; border-radius: 15px; padding: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+.results-content { transition: all 0.4s ease; }
+
+/* Map */
+.map-container { position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+#map { height: 100%; width: 100%; }
+.map-attribution { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000; }
+
+/* Loading Overlay */
+.loading { 
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+    background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; 
+    color: white; z-index: 2000; flex-direction: column; 
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.loading.visible { opacity: 1; pointer-events: all; }
+
+.spinner { 
+    border: 4px solid rgba(255,255,255,0.3); 
+    border-top: 4px solid white; 
+    border-radius: 50%; 
+    width: 50px; height: 50px; 
+    animation: spin 1s linear infinite; 
+    margin-bottom: 15px; 
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Comfort Status */
+.status { font-weight: 600; padding: 5px 10px; border-radius: 8px; display: inline-block; }
+.Hot { background-color: #ff6b6b; color: white; }
+.Cold { background-color: #4dd0e1; color: white; }
+.Comfortable { background-color: #51cf66; color: white; }
+
+</style>
+</head>
+<body>
+<div class="app-container">
+    <header class="app-header">
+        <h1>🌤️ Weather Comfort Forecast</h1>
+        <p>Get personalized weather comfort predictions for any location</p>
+    </header>
+
+    <div class="main-content">
+        <div class="sidebar">
+            <div class="control-panel">
+                <h3>Location & Date</h3>
+                <div class="input-group">
+                    <label for="place-input">Enter Place Name:</label>
+                    <input type="text" id="place-input" placeholder="E.g., New York, London">
+                </div>
+                <div class="input-group">
+                    <label for="date-input">Select Date:</label>
+                    <input type="date" id="date-input" class="date-input">
+                </div>
+                <button id="analyze-btn" class="analyze-btn">Analyze Comfort Level</button>
+            </div>
+            <div class="results-panel" id="results-panel">
+                <h3>Comfort Analysis</h3>
+                <div class="results-content" id="results-content">
+                    <p class="placeholder">Enter a place name and date to analyze</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="map-attribution">Map Data © <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors</div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Analyzing weather data...</p>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+<script>
+class WeatherComfortApp {
+    constructor() {
+        this.map = null;
+        this.marker = null;
+        this.currentDate = new Date().toISOString().split('T')[0];
+        this.init();
+    }
+
+    init() {
+        this.initializeMap();
+        this.setupEventListeners();
+        document.getElementById('date-input').value = this.currentDate;
+    }
+
+    initializeMap() {
+        this.map = L.map('map').setView([20, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(this.map);
+
+        // Optional: add click to select
+        this.map.on('click', (e) => {
+            if (this.marker) this.marker.setLatLng(e.latlng);
+            else this.marker = L.marker(e.latlng).addTo(this.map);
+        });
+    }
+
+    setupEventListeners() {
+        document.getElementById('analyze-btn').addEventListener('click', () => this.analyzeComfort());
+    }
+
+    async analyzeComfort() {
+        const placeName = document.getElementById('place-input').value.trim();
+        if (!placeName) {
+            alert('Please enter a place name!');
+            return;
+        }
+
+        const loading = document.getElementById('loading');
+        loading.classList.add('visible');
+
+        // Use OpenStreetMap Nominatim API for geocoding
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (!data || data.length === 0) {
+                alert('Place not found. Try a different name.');
+                loading.classList.remove('visible');
+                return;
+            }
+
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            if (this.marker) this.marker.setLatLng([lat, lon]);
+            else this.marker = L.marker([lat, lon]).addTo(this.map);
+            this.map.setView([lat, lon], 10);
+
+            // Generate mock weather data
+            const mockData = this.generateMockWeatherData(lat);
+            setTimeout(() => {
+                this.displayResults(mockData, placeName);
+                loading.classList.remove('visible');
+            }, 800);
+        } catch (error) {
+            console.error(error);
+            alert('Error fetching location. Try again.');
+            loading.classList.remove('visible');
+        }
+    }
+
+    generateMockWeatherData(lat) {
+        const temp = 15 + (Math.random() * 20);
+        const rainfall = Math.random() * 15;
+        const humidity = 40 + Math.random() * 50;
+        return { temperature: temp.toFixed(1), rainfall: rainfall.toFixed(1), humidity: humidity.toFixed(0) };
+    }
+
+    displayResults(data, place) {
+        let status = (data.temperature > 30) ? 'Hot' : (data.temperature < 10) ? 'Cold' : 'Comfortable';
+        document.getElementById('results-content').innerHTML = `
+            <div>
+                <h4>Comfort Analysis for ${place}</h4>
+                <p>Temperature: ${data.temperature} °C</p>
+                <p>Rainfall: ${data.rainfall} mm</p>
+                <p>Humidity: ${data.humidity}%</p>
+                <p><strong>Status:</strong> <span class="status ${status}">${status}</span></p>
+            </div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new WeatherComfortApp());
+</script>
+</body>
+</html>
